@@ -1,24 +1,50 @@
 import argparse
 import csv
 import json
+import os
 import pickle
+import sys
 from collections import defaultdict
+
+# Resolve project modules whether this script runs from the repo tree
+# (evaluation/) or from a flat working directory, as on MSI.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _p in (_HERE, os.path.dirname(_HERE)):
+    if _p not in sys.path:
+        sys.path.append(_p)
 
 import numpy as np
 import torch
 from tqdm import tqdm
 from torch.utils.data import SequentialSampler
 
-from data.loaders.dataset_drivaerml_surface_numpy_chunk import (
-    DrivAerChunkDataset,
-    DrivAerMLVTUChunkDataLoader,
-)
+try:
+    from data.loaders.dataset_drivaerml_surface_numpy_chunk import (
+        DrivAerChunkDataset,
+        DrivAerMLVTUChunkDataLoader,
+    )
+except ImportError:
+    from dataset.dataset_drivaerml_surface_numpy_chunk import (
+        DrivAerChunkDataset,
+        DrivAerMLVTUChunkDataLoader,
+    )
 
 
 MODEL_CONFIGS = {
     "transolver3_full": dict(
         n_hidden=256,
         n_layers=16,
+        space_dim=6,
+        fun_dim=0,
+        n_head=8,
+        mlp_ratio=2,
+        out_dim=4,
+        slice_num=64,
+        unified_pos=0,
+    ),
+    "transolver3_efficient": dict(
+        n_hidden=256,
+        n_layers=8,
         space_dim=6,
         fun_dim=0,
         n_head=8,
@@ -77,6 +103,7 @@ MODEL_CONFIGS = {
 
 EXPECTED_PARAMS = {
     "transolver3_full": 7_600_772,
+    "transolver3_efficient": 3_868_740,
     "linearno_full": 7_665_412,
     "linearno_efficient": 3_851_908,
     "lrsa_full": 7_583_580,
@@ -87,7 +114,7 @@ EXPECTED_PARAMS = {
 def build_model(model_name):
     kwargs = MODEL_CONFIGS[model_name]
 
-    if model_name == "transolver3_full":
+    if model_name in {"transolver3_full", "transolver3_efficient"}:
         from models import Transolver_chunk_opt_matrix_mul
         return Transolver_chunk_opt_matrix_mul.Model(**kwargs)
 

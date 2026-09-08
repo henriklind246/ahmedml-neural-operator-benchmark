@@ -11,14 +11,15 @@ training and evaluation protocol.
 The current benchmark includes:
 
 - **Transolver-3**
+- **Efficient Transolver-3**
 - **LinearNO**
 - **Efficient LinearNO**
 - **LRSA**
 - **Efficient LRSA**
 
-The full models contain approximately 7.6M parameters. The efficient LinearNO
-and LRSA variants contain approximately 3.85M and 4.03M parameters,
-respectively.
+The full models contain approximately 7.6M parameters. The efficient
+Transolver-3, LinearNO, and LRSA variants contain approximately 3.87M, 3.85M,
+and 4.03M parameters, respectively.
 
 ## Dataset
 

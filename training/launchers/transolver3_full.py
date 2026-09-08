@@ -1,9 +1,29 @@
-import train_surface
 import os
+import sys
+
+# Resolve project modules whether this script runs from the repo tree
+# (training/launchers/) or from a flat working directory, as on MSI.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _p in (_HERE, os.path.dirname(_HERE), os.path.dirname(os.path.dirname(_HERE))):
+    if _p not in sys.path:
+        sys.path.append(_p)
+
+import train_surface
 import torch
 import argparse
 import logging
-from dataset.dataset_drivaerml_surface_numpy_chunk import DrivAerChunkDataset, DrivAerMLVTUChunkDataLoader
+
+try:
+    from data.loaders.dataset_drivaerml_surface_numpy_chunk import (
+        DrivAerChunkDataset,
+        DrivAerMLVTUChunkDataLoader,
+    )
+except ImportError:
+    from dataset.dataset_drivaerml_surface_numpy_chunk import (
+        DrivAerChunkDataset,
+        DrivAerMLVTUChunkDataLoader,
+    )
+
 import json
 import numpy as np
 from torch.utils.data import SequentialSampler

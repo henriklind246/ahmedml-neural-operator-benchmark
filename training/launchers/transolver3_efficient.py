@@ -29,10 +29,11 @@ import numpy as np
 from torch.utils.data import SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
 
-from models import LinearNO_chunk_opt_matrix_mul
+from models import Transolver_chunk_opt_matrix_mul
+from models import Transolver_chunk_opt_matrix_mul_amortize
 
 MODEL_KWARGS = dict(n_hidden=256, n_layers=8, space_dim=6,
-                    fun_dim=0, n_head=8, mlp_ratio=2, out_dim=4, key_ratio=1,
+                    fun_dim=0, n_head=8, mlp_ratio=2, out_dim=4,
                     slice_num=64, unified_pos=0)
 
 parser = argparse.ArgumentParser()
@@ -50,7 +51,7 @@ parser.add_argument('--model_ckpt', default='./model.pth',
 parser.add_argument('--gpu', default=0, type=int,
                     help='GPU index used for single-GPU evaluation (ignored during DDP training)')
 parser.add_argument('--val_iter', default=10, type=int)
-parser.add_argument('--cfd_model', default='LinearNO_chunk_opt_matrix_mul', type=str)
+parser.add_argument('--cfd_model', default='Transolver_chunk_opt_matrix_mul', type=str)
 parser.add_argument('--r', default=0.2, type=float)
 parser.add_argument('--weight', default=0.5, type=float)
 parser.add_argument('--lr', default=0.001, type=float)
@@ -162,7 +163,7 @@ def _load_state_dict(path, device):
 
 
 if not args.eval:
-    model = LinearNO_chunk_opt_matrix_mul.Model(**MODEL_KWARGS).to(device)
+    model = Transolver_chunk_opt_matrix_mul.Model(**MODEL_KWARGS).to(device)
     model = torch.nn.parallel.DistributedDataParallel(model)
     logging.info(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
@@ -177,7 +178,7 @@ if not args.eval:
 
 elif args.eval == 1:
     # Standard evaluation (single GPU)
-    model = LinearNO_chunk_opt_matrix_mul.Model(**MODEL_KWARGS).to(device)
+    model = Transolver_chunk_opt_matrix_mul.Model(**MODEL_KWARGS).to(device)
     model.load_state_dict(_load_state_dict(args.model_ckpt, device))
     print(f"Number of parameters: {sum(p.numel() for p in model.parameters())}")
     print(f"Validation batches: {len(val_loader)}")
@@ -194,10 +195,10 @@ elif args.eval == 2:
     # Decoupled inference: physical state caching (Stage 1) + full mesh decoding (Stage 2)
     state_dict = _load_state_dict(args.model_ckpt, device)
 
-    caching_model = LinearNO_chunk_opt_matrix_mul_amortize.PhysicalStateCachingModel(**MODEL_KWARGS).to(device)
+    caching_model = Transolver_chunk_opt_matrix_mul_amortize.PhysicalStateCachingModel(**MODEL_KWARGS).to(device)
     caching_model.load_state_dict(state_dict)
 
-    decoding_model = LinearNO_chunk_opt_matrix_mul_amortize.FullMeshDecodingModel(**MODEL_KWARGS).to(device)
+    decoding_model = Transolver_chunk_opt_matrix_mul_amortize.FullMeshDecodingModel(**MODEL_KWARGS).to(device)
     decoding_model.load_state_dict(state_dict)
 
     print(f"Validation batches: {len(val_loader)}")
