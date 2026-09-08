@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
+
+# Large datasets / generated arrays
+*.npy
+*.npz
+*.pkl
+*.h5
+*.hdf5
+*.vtu
+*.vtp
+
+# Experiment outputs
+outputs/
+checkpoints/
+logs/
+wandb/
+
+# Slurm output
+slurm-*.out
+*.out
+*.err
+
+# Temporary / backup files
+*.bak
+*.tmp
+*~
