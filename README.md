@@ -96,8 +96,9 @@ need the Python environment, preprocessed data, training normalization file, and
 matching checkpoint; datasets and trained weights are not shipped in this repo.
 See [upstream versions](docs/upstream_versions.md) for recorded revisions.
 
-The older **training** Slurm scripts still point to `~/repos/Transolver-3` and
-legacy `main_ahmedml_*.py` filenames. Some training launchers also retain
+Except for the updated `slurm/linearno_full.slurm`, the older **training** Slurm
+scripts still point to `~/repos/Transolver-3` and legacy `main_ahmedml_*.py`
+filenames. Some training launchers also retain
 `--eval 2` branches referencing missing amortized model classes. Those scripts
 have not yet been fully migrated to this repository layout. The shared
 `evaluation/eval_ahmedml.py` workflow below runs from this checkout and does not
@@ -105,28 +106,17 @@ use those legacy launchers.
 
 ## Example: train LinearNO full on MSI
 
-Inside a single-node MSI allocation with **four GPUs**, activate your training
-environment and run the following from this repository. Use this command in
-your batch job or allocated GPU shell, not on a login node. It calls the local
-launcher directly; no separate LinearNO or Transolver-3 checkout is required.
+Activate your training environment, then submit this batch job from the MSI
+login node. It requests **four A100 GPUs on one node for up to eight hours**,
+with 32 CPUs and 128 GB host RAM. The batch script calls the local training
+launcher; no separate LinearNO or Transolver-3 checkout is required.
 
 ```bash
 cd ~/repos/ahmedml-neural-operator-benchmark
 export AHMEDML_ROOT="/scratch.global/$USER/ahmedml"
-export OMP_NUM_THREADS=8
+export PYTHON_BIN="$(command -v python)"
 
-python -m torch.distributed.run \
-  --standalone \
-  --nproc_per_node=4 \
-  training/launchers/linearno_full.py \
-  --data_dir "$AHMEDML_ROOT/t3_chunks" \
-  --json_file data/splits/ahmedml_trainval.json \
-  --norm_stats_file "$AHMEDML_ROOT/ahmedml_norm_stats.pkl" \
-  --save_dir "$AHMEDML_ROOT/linearno_full_500" \
-  --nb_epochs 500 \
-  --batch_size 1 \
-  --lr 0.001 \
-  --val_iter 25
+sbatch slurm/linearno_full.slurm
 ```
 
 This trains the 16-layer LinearNO model for 500 epochs, with one sampled geometry
@@ -135,12 +125,14 @@ The input chunks and normalization file must already exist. Training uses the
 400/50 train/validation split, leaving the held-out test geometries for evaluation.
 On successful completion, the final checkpoint is
 `$AHMEDML_ROOT/linearno_full_500/model_500.pth`, matching the evaluation launcher's
-default path. Choose a different `--save_dir` for a separate training run.
+default path. Export `SAVE_DIR` before submission to choose a different output
+directory for a separate training run.
 
-Set `--nproc_per_node` to the number of GPUs allocated on that node; for a
-single-GPU run, use `--nproc_per_node=1`. The existing
-`slurm/linearno_full.slurm` still uses the legacy checkout and launcher paths
-described above, so do not submit it unchanged for this repository layout.
+The script starts four workers with `python -m torch.distributed.run`, using
+`--nproc_per_node=4`, a learning rate of `0.001`, and `OMP_NUM_THREADS=8`.
+Logs are written to `slurm-<job-id>.out` and `slurm-<job-id>.err` in the submission
+directory. The eight-hour limit is the job's maximum runtime; completion of all
+500 epochs within that time has not been measured.
 
 ## Full-geometry evaluation on MSI
 

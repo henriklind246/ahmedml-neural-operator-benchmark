@@ -1,39 +1,42 @@
 #!/bin/bash
 #SBATCH --job-name=linearno500
 #SBATCH --partition=msigpu
-#SBATCH --gres=gpu:h100:4
+#SBATCH --gres=gpu:a100:4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
-#SBATCH --time=12:00:00
+#SBATCH --time=08:00:00
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
 
-set -e
+set -euo pipefail
 
-cd ~/repos/Transolver-3
+# Submit from this repository after activating the training environment.
+cd "${REPO_ROOT:-${SLURM_SUBMIT_DIR:?Submit with sbatch from the repository root}}"
+test -f training/launchers/linearno_full.py
 
-export PATH="$HOME/.local/bin:$PATH"
 export OMP_NUM_THREADS=8
+export PYTHONUNBUFFERED=1
 
 AHMEDML_ROOT="${AHMEDML_ROOT:-/scratch.global/$USER/ahmedml}"
 
-mkdir -p ${AHMEDML_ROOT}/linearno_full_500
+SAVE_DIR="${SAVE_DIR:-$AHMEDML_ROOT/linearno_full_500}"
+mkdir -p "$SAVE_DIR"
 
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"
 echo "Started: $(date)"
 nvidia-smi
 
-python -m torch.distributed.run \
+"${PYTHON_BIN:-python}" -m torch.distributed.run \
   --standalone \
   --nproc_per_node=4 \
-  main_ahmedml_linearno.py \
-  --data_dir ${AHMEDML_ROOT}/t3_chunks \
-  --json_file ./ahmedml_trainval.json \
-  --norm_stats_file ${AHMEDML_ROOT}/ahmedml_norm_stats.pkl \
-  --save_dir ${AHMEDML_ROOT}/linearno_full_500 \
+  training/launchers/linearno_full.py \
+  --data_dir "$AHMEDML_ROOT/t3_chunks" \
+  --json_file data/splits/ahmedml_trainval.json \
+  --norm_stats_file "$AHMEDML_ROOT/ahmedml_norm_stats.pkl" \
+  --save_dir "$SAVE_DIR" \
   --nb_epochs 500 \
   --batch_size 1 \
   --lr 0.001 \
