@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --job-name=ahmedml_full_geometry
-#SBATCH --partition=msigpu
+#SBATCH --partition=interactive-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
