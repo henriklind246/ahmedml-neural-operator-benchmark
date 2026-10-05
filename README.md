@@ -51,7 +51,7 @@ ahmedml-neural-operator-benchmark/
 ├── slurm/                # Training and full-geometry evaluation jobs
 ├── training/             # Shared training code and launchers
 ├── tests/                # Full-geometry inference correctness checks
-└── visualization/        # ParaView-compatible qualitative outputs
+└── visualization/        # ParaView outputs and prediction parity plots
 ```
 
 ## How the pipeline fits together
@@ -74,7 +74,9 @@ Training samples 100,000 cells per geometry. Full-geometry evaluation uses all
 stored cells of each test geometry with global context. `slurm/` provides MSI job
 launchers around the Python entry points. `visualization/` provides a separate
 Transolver-3 full-model script for exporting predictions to VTP for ParaView;
-that script currently uses independent-chunk inference.
+that script currently uses independent-chunk inference. It also provides
+`plot_parity.py`, which plots predicted against true pressure and |WSS| for any
+evaluated model (see [parity plots](docs/full_geometry_inference.md#parity-plots)).
 
 ## External code and data on MSI
 
@@ -100,6 +102,45 @@ legacy `main_ahmedml_*.py` filenames. Some training launchers also retain
 have not yet been fully migrated to this repository layout. The shared
 `evaluation/eval_ahmedml.py` workflow below runs from this checkout and does not
 use those legacy launchers.
+
+## Example: train LinearNO full on MSI
+
+Inside a single-node MSI allocation with **four GPUs**, activate your training
+environment and run the following from this repository. Use this command in
+your batch job or allocated GPU shell, not on a login node. It calls the local
+launcher directly; no separate LinearNO or Transolver-3 checkout is required.
+
+```bash
+cd ~/repos/ahmedml-neural-operator-benchmark
+export AHMEDML_ROOT="/scratch.global/$USER/ahmedml"
+export OMP_NUM_THREADS=8
+
+python -m torch.distributed.run \
+  --standalone \
+  --nproc_per_node=4 \
+  training/launchers/linearno_full.py \
+  --data_dir "$AHMEDML_ROOT/t3_chunks" \
+  --json_file data/splits/ahmedml_trainval.json \
+  --norm_stats_file "$AHMEDML_ROOT/ahmedml_norm_stats.pkl" \
+  --save_dir "$AHMEDML_ROOT/linearno_full_500" \
+  --nb_epochs 500 \
+  --batch_size 1 \
+  --lr 0.001 \
+  --val_iter 25
+```
+
+This trains the 16-layer LinearNO model for 500 epochs, with one sampled geometry
+per GPU per step and validation every 25 epochs (also at the final epoch).
+The input chunks and normalization file must already exist. Training uses the
+400/50 train/validation split, leaving the held-out test geometries for evaluation.
+On successful completion, the final checkpoint is
+`$AHMEDML_ROOT/linearno_full_500/model_500.pth`, matching the evaluation launcher's
+default path. Choose a different `--save_dir` for a separate training run.
+
+Set `--nproc_per_node` to the number of GPUs allocated on that node; for a
+single-GPU run, use `--nproc_per_node=1`. The existing
+`slurm/linearno_full.slurm` still uses the legacy checkout and launcher paths
+described above, so do not submit it unchanged for this repository layout.
 
 ## Full-geometry evaluation on MSI
 

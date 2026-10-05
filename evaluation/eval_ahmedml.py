@@ -150,6 +150,15 @@ def load_state_dict(path, device):
     return state
 
 
+def save_run_predictions(directory, run_name, truth_chunks, prediction_chunks):
+    """Write one geometry's physical [p, wss_x, wss_y, wss_z] fields in stored part order."""
+    np.savez(
+        os.path.join(directory, f"{run_name}.npz"),
+        true=np.concatenate(truth_chunks),
+        pred=np.concatenate(prediction_chunks),
+    )
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -169,12 +178,17 @@ def main():
                         help="Max cells per compute chunk in full_geometry mode (does not bound LRSA memory)")
     parser.add_argument("--device", default="cuda:0", help="CUDA device, or cpu for small smoke tests")
     parser.add_argument("--runs", nargs="+", help="Optional subset of run names from the test split")
+    parser.add_argument("--save_predictions", action="store_true",
+                        help="Also write per-geometry true/predicted fields to OUT_DIR/predictions (~35 MB per geometry)")
     args = parser.parse_args()
     if args.chunk_size <= 0 or args.num_workers < 0:
         parser.error("--chunk_size must be positive and --num_workers nonnegative")
 
     import os
     os.makedirs(args.out_dir, exist_ok=True)
+    prediction_dir = os.path.join(args.out_dir, "predictions")
+    if args.save_predictions:
+        os.makedirs(prediction_dir, exist_ok=True)
 
     device = torch.device(args.device)
     if device.type == "cuda":
@@ -257,6 +271,9 @@ def main():
         "wss_vector_den": 0.0,
     })
 
+    # Geometries arrive contiguously, so saved fields hold at most one run in memory.
+    saved_run, saved_true, saved_pred = None, [], []
+
     started = time.perf_counter()
     with torch.inference_mode():
         predictions = iter_predictions(model, loader, device, args.inference_mode, args.chunk_size)
@@ -291,6 +308,14 @@ def main():
             y_phys = y * std + mean
             pred_phys = pred * std + mean
 
+            if args.save_predictions:
+                if run_name != saved_run:
+                    if saved_run is not None:
+                        save_run_predictions(prediction_dir, saved_run, saved_true, saved_pred)
+                    saved_run, saved_true, saved_pred = run_name, [], []
+                saved_true.append(y_phys.reshape(-1, 4).numpy())
+                saved_pred.append(pred_phys.reshape(-1, 4).numpy())
+
             # Pressure.
             p_true = y_phys[..., 0]
             p_pred = pred_phys[..., 0]
@@ -324,6 +349,8 @@ def main():
                 (wss_true.double() ** 2).sum().item()
             )
 
+    if saved_run is not None:
+        save_run_predictions(prediction_dir, saved_run, saved_true, saved_pred)
     elapsed = time.perf_counter() - started
     if set(stats) != set(split["test_list"]):
         raise RuntimeError("Evaluation did not cover every requested geometry")
@@ -408,6 +435,7 @@ def main():
         "json_file": os.path.abspath(args.json_file),
         "norm_stats_file": os.path.abspath(args.norm_stats_file),
         "runs": split["test_list"],
+        "predictions_dir": os.path.abspath(prediction_dir) if args.save_predictions else None,
         "device": str(device),
         "evaluation_seconds": elapsed,
         "peak_gpu_memory_bytes": torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None,
@@ -493,6 +521,8 @@ def main():
     print("\nSaved:")
     print(csv_path)
     print(json_path)
+    if args.save_predictions:
+        print(prediction_dir)
 
 
 if __name__ == "__main__":

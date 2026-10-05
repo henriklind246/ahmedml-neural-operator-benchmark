@@ -124,7 +124,7 @@ def test_evaluator_writes_mode_coverage_and_finite_metrics(surface_data, tmp_pat
         "--data_dir", str(tmp_path), "--json_file", str(split_path),
         "--norm_stats_file", str(norm), "--model_ckpt", str(checkpoint),
         "--out_dir", str(out), "--device", "cpu", "--num_workers", "0",
-        "--inference_mode", "full_geometry", "--chunk_size", "2"])
+        "--inference_mode", "full_geometry", "--chunk_size", "2", "--save_predictions"])
     eval_ahmedml.main()
     summary = json.loads((out / "test_summary.json").read_text())
     assert summary["inference_mode"] == "full_geometry"
@@ -138,6 +138,12 @@ def test_evaluator_writes_mode_coverage_and_finite_metrics(surface_data, tmp_pat
     mean2 = sum((3 + i % 2) * (i + 1) for i in range(11)) / 38
     expected_mse = (7 * mean1 ** 2 + 38 * mean2 ** 2) / 45
     np.testing.assert_allclose(summary["global_normalized_mse"], [expected_mse] * 4, rtol=1e-6)
+    # Saved fields cover every cell of each geometry, across many compute chunks.
+    assert summary["predictions_dir"] == str(out / "predictions")
+    for run, count, value in [("run_1", 7, mean1), ("run_2", 38, mean2)]:
+        with np.load(out / "predictions" / f"{run}.npz") as saved:
+            np.testing.assert_array_equal(saved["true"], np.zeros((count, 4), dtype=np.float32))
+            np.testing.assert_allclose(saved["pred"], np.full((count, 4), value), rtol=1e-6)
 
 
 def test_rejects_noncontiguous_geometries():
