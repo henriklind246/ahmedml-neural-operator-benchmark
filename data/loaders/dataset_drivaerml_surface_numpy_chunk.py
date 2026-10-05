@@ -5,6 +5,7 @@ import torch
 import torch.utils.data as data
 import random
 import pickle
+import re
 
 
 class DrivAerChunkDataset(data.Dataset):
@@ -37,10 +38,11 @@ class DrivAerChunkDataset(data.Dataset):
         for run_name in self.run_list:
             run_dir = os.path.join(root, run_name)
             boundary_name = run_name.replace('run', 'boundary')
+            pattern = re.compile(rf"{re.escape(boundary_name)}_points_{re.escape(chunk_suffix)}(\d+)\.npy")
             point_chunk_files = sorted([
                 f for f in os.listdir(run_dir)
-                if f.startswith(f"{boundary_name}_points_{chunk_suffix}")
-            ])
+                if pattern.fullmatch(f)
+            ], key=lambda f: int(pattern.fullmatch(f).group(1)))
             if len(point_chunk_files) == 0:
                 raise ValueError(f"No chunk files found in: {run_dir}")
 
@@ -60,16 +62,19 @@ class DrivAerChunkDataset(data.Dataset):
                     parts.append(stem)
                 self.run_chunks[run_name] = parts
 
+        # Each geometry may have a different number of stored parts.
+        self.eval_chunks = [
+            (run_name, part)
+            for run_name in self.run_list
+            for part in self.run_chunks[run_name]
+        ]
         print(f"ChunkDataset initialized with {len(self.run_list)} runs")
 
     def __len__(self):
         if self.train:
             return len(self.run_list)
         else:
-            total_parts = 0
-            for run_name in self.run_chunks.keys():
-                total_parts += len(self.run_chunks[run_name])
-            return total_parts
+            return len(self.eval_chunks)
 
     def __getitem__(self, idx):
         if self.train:
@@ -149,12 +154,8 @@ class DrivAerChunkDataset(data.Dataset):
 
             return points_list, labels_list, points_list, run_name
         else:
-            num_parts = len(self.run_chunks[self.run_list[0]])
-            run_name = self.run_list[idx // num_parts]
+            run_name, part_id = self.eval_chunks[idx]
             boundary_name = run_name.replace('run', 'boundary')
-            parts = self.run_chunks[run_name]
-            parts = sorted(parts, key=lambda x: int(x.replace('part', '')))
-            part_id = parts[idx % num_parts]
 
             run_dir = os.path.join(self.root, run_name)
 

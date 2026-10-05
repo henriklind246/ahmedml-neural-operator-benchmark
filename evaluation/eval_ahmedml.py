@@ -4,6 +4,7 @@ import json
 import os
 import pickle
 import sys
+import time
 from collections import defaultdict
 
 # Resolve project modules whether this script runs from the repo tree
@@ -17,6 +18,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from torch.utils.data import SequentialSampler
+try:
+    from evaluation.inference import iter_predictions
+except ModuleNotFoundError:
+    from inference import iter_predictions
 
 try:
     from data.loaders.dataset_drivaerml_surface_numpy_chunk import (
@@ -158,22 +163,43 @@ def main():
     parser.add_argument("--model_ckpt", required=True)
     parser.add_argument("--out_dir", required=True)
     parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--inference_mode", choices=["chunkwise", "full_geometry"],
+                        default="chunkwise", help="full_geometry shares context across every cell in a run")
+    parser.add_argument("--chunk_size", type=int, default=50000,
+                        help="Max cells per compute chunk in full_geometry mode (does not bound LRSA memory)")
+    parser.add_argument("--device", default="cuda:0", help="CUDA device, or cpu for small smoke tests")
+    parser.add_argument("--runs", nargs="+", help="Optional subset of run names from the test split")
     args = parser.parse_args()
+    if args.chunk_size <= 0 or args.num_workers < 0:
+        parser.error("--chunk_size must be positive and --num_workers nonnegative")
 
     import os
     os.makedirs(args.out_dir, exist_ok=True)
 
-    device = torch.device("cuda:0")
-    torch.cuda.set_device(0)
+    device = torch.device(args.device)
+    if device.type == "cuda":
+        torch.cuda.set_device(device)
+        torch.cuda.reset_peak_memory_stats(device)
 
     with open(args.json_file) as f:
         split = json.load(f)
+    if not split["test_list"] or len(set(split["test_list"])) != len(split["test_list"]):
+        raise ValueError("test_list must contain unique run names and must not be empty")
+    if args.runs:
+        unknown = set(args.runs) - set(split["test_list"])
+        if unknown:
+            raise ValueError(f"Requested runs are not in the test split: {sorted(unknown)}")
+        split["test_list"] = [run for run in split["test_list"] if run in args.runs]
 
     with open(args.norm_stats_file, "rb") as f:
         norm_stats = pickle.load(f)
 
     label_mean_np = np.asarray(norm_stats["label_mean"], dtype=np.float64)
     label_std_np = np.asarray(norm_stats["label_std"], dtype=np.float64)
+    if (label_mean_np.shape != (4,) or label_std_np.shape != (4,)
+            or not np.isfinite(label_mean_np).all() or not np.isfinite(label_std_np).all()
+            or (label_std_np <= 0).any()):
+        raise ValueError("Normalization statistics must contain four finite means and positive stds")
 
     print("AhmedML label mean:", label_mean_np)
     print("AhmedML label std :", label_std_np)
@@ -197,7 +223,7 @@ def main():
     print("Evaluation chunks :", len(loader))
 
     model = build_model(args.model).to(device)
-    model.load_state_dict(load_state_dict(args.model_ckpt, device), strict=True)
+    model.load_state_dict(load_state_dict(args.model_ckpt, "cpu"), strict=True)
     model.eval()
 
     num_params = sum(p.numel() for p in model.parameters())
@@ -211,11 +237,14 @@ def main():
 
     print("Model             :", args.model)
     print("Parameters        :", num_params)
+    print("Inference mode    :", args.inference_mode)
+    print("Compute chunk size:", args.chunk_size)
 
-    mean = torch.tensor(label_mean_np, device=device, dtype=torch.float32)
-    std = torch.tensor(label_std_np, device=device, dtype=torch.float32)
+    # Score on CPU so full-geometry labels and float64 metrics do not consume VRAM.
+    mean = torch.tensor(label_mean_np, dtype=torch.float32)
+    std = torch.tensor(label_std_np, dtype=torch.float32)
 
-    # Small accumulators only; no full million-cell fields are kept in memory.
+    # Metrics retain only small per-run accumulators after each geometry is scored.
     stats = defaultdict(lambda: {
         "count": 0,
         "norm_sse": np.zeros(4, dtype=np.float64),
@@ -228,15 +257,12 @@ def main():
         "wss_vector_den": 0.0,
     })
 
-    with torch.no_grad():
-        for x, y, _pos, run_name in tqdm(loader, desc="AhmedML test"):
-            if isinstance(run_name, (list, tuple)):
-                run_name = run_name[0]
-
-            x = x.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
-
-            pred = model([x])[0]
+    started = time.perf_counter()
+    with torch.inference_mode():
+        predictions = iter_predictions(model, loader, device, args.inference_mode, args.chunk_size)
+        for pred, y, run_name in tqdm(predictions, desc="AhmedML test (output chunks)"):
+            if not torch.isfinite(pred).all() or not torch.isfinite(y).all():
+                raise RuntimeError(f"Non-finite predictions or labels for {run_name}")
 
             diff_norm = pred - y
 
@@ -298,6 +324,9 @@ def main():
                 (wss_true.double() ** 2).sum().item()
             )
 
+    elapsed = time.perf_counter() - started
+    if set(stats) != set(split["test_list"]):
+        raise RuntimeError("Evaluation did not cover every requested geometry")
     rows = []
 
     total_count = 0
@@ -371,6 +400,17 @@ def main():
     wss_vector_case = np.array([r["wss_vector_l2re"] for r in rows])
 
     summary = {
+        "model": args.model,
+        "inference_mode": args.inference_mode,
+        "chunk_size": args.chunk_size,
+        "model_ckpt": os.path.abspath(args.model_ckpt),
+        "data_dir": os.path.abspath(args.data_dir),
+        "json_file": os.path.abspath(args.json_file),
+        "norm_stats_file": os.path.abspath(args.norm_stats_file),
+        "runs": split["test_list"],
+        "device": str(device),
+        "evaluation_seconds": elapsed,
+        "peak_gpu_memory_bytes": torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None,
         "num_test_geometries": len(rows),
         "total_test_cells": int(total_count),
 
@@ -381,13 +421,13 @@ def main():
             (total_norm_abs / total_count).tolist(),
 
         "global_pressure_l2re":
-            float(np.sqrt(total_pressure_sse / total_pressure_den)),
+            float(np.sqrt(total_pressure_sse / max(total_pressure_den, 1e-30))),
 
         "global_wss_magnitude_l2re":
-            float(np.sqrt(total_wss_sse / total_wss_den)),
+            float(np.sqrt(total_wss_sse / max(total_wss_den, 1e-30))),
 
         "global_wss_vector_l2re":
-            float(np.sqrt(total_wss_vector_sse / total_wss_vector_den)),
+            float(np.sqrt(total_wss_vector_sse / max(total_wss_vector_den, 1e-30))),
 
         "mean_case_pressure_l2re":
             float(pressure_case.mean()),
