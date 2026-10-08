@@ -64,7 +64,7 @@ MODEL_CONFIGS = {
         space_dim=6,
         fun_dim=0,
         n_head=8,
-        key_ratio=2,
+        key_ratio=1,
         mlp_ratio=2,
         out_dim=4,
         slice_num=64,
@@ -110,7 +110,7 @@ MODEL_CONFIGS = {
 EXPECTED_PARAMS = {
     "transolver3_full": 7_600_772,
     "transolver3_efficient": 3_868_740,
-    "linearno_full": 7_599_876,
+    "linearno_full": 7_567_108,
     "linearno_efficient": 3_851_908,
     "lrsa_full": 7_583_580,
     "lrsa_efficient": 4_029_340,

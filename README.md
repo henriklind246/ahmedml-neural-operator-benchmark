@@ -107,7 +107,7 @@ use those legacy launchers.
 ## Example: train LinearNO full on MSI
 
 Activate your training environment, then submit this batch job from the MSI
-login node. It requests **four A100 GPUs on one node for up to 21 hours**,
+login node. It requests **four A100 GPUs on one node for up to 20 hours**,
 with 32 CPUs and 128 GB host RAM. The batch script calls the local training
 launcher; no separate LinearNO or Transolver-3 checkout is required.
 
@@ -119,11 +119,11 @@ export PYTHON_BIN="$(command -v python)"
 sbatch slurm/linearno_full.slurm
 ```
 
-This trains the 16-layer LinearNO model with `key_ratio=2` (64 query/key features
-per head; 7,599,876 parameters) for 500 epochs, with one sampled geometry per GPU
+This trains the 16-layer LinearNO model with `key_ratio=1` (32 query/key features
+per head; 7,567,108 parameters) for 500 epochs, with one sampled geometry per GPU
 per step and validation every 25 epochs (also at the final epoch).
-Training and evaluation use this architecture; older `key_ratio=4` full-model
-checkpoints are incompatible with it.
+Training and evaluation use this architecture; older full-model checkpoints with
+`key_ratio=2` or `key_ratio=4` are incompatible with it.
 The input chunks and normalization file must already exist. Training uses the
 400/50 train/validation split, leaving the held-out test geometries for evaluation.
 On successful completion, the final checkpoint is
@@ -134,7 +134,7 @@ directory for a separate training run.
 The script starts four workers with `python -m torch.distributed.run`, using
 `--nproc_per_node=4`, a learning rate of `0.001`, and `OMP_NUM_THREADS=8`.
 Logs are written to `slurm-<job-id>.out` and `slurm-<job-id>.err` in the submission
-directory. The 21-hour limit is the job's maximum runtime; completion of all
+directory. The 20-hour limit is the job's maximum runtime; completion of all
 500 epochs within that time has not been measured.
 
 ## Full-geometry evaluation on MSI
