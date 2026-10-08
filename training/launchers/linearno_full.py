@@ -32,7 +32,7 @@ from torch.utils.data.distributed import DistributedSampler
 from models import LinearNO_chunk_opt_matrix_mul
 
 MODEL_KWARGS = dict(n_hidden=256, n_layers=16, space_dim=6,
-                    fun_dim=0, n_head=8, mlp_ratio=2, out_dim=4,
+                    fun_dim=0, n_head=8, mlp_ratio=2, out_dim=4, key_ratio=2,
                     slice_num=64, unified_pos=0)
 
 parser = argparse.ArgumentParser()

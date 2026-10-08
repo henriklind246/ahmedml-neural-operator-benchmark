@@ -119,8 +119,11 @@ export PYTHON_BIN="$(command -v python)"
 sbatch slurm/linearno_full.slurm
 ```
 
-This trains the 16-layer LinearNO model for 500 epochs, with one sampled geometry
-per GPU per step and validation every 25 epochs (also at the final epoch).
+This trains the 16-layer LinearNO model with `key_ratio=2` (64 query/key features
+per head; 7,599,876 parameters) for 500 epochs, with one sampled geometry per GPU
+per step and validation every 25 epochs (also at the final epoch).
+Training and evaluation use this architecture; older `key_ratio=4` full-model
+checkpoints are incompatible with it.
 The input chunks and normalization file must already exist. Training uses the
 400/50 train/validation split, leaving the held-out test geometries for evaluation.
 On successful completion, the final checkpoint is
