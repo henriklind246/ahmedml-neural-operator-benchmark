@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=lnoeff500
+#SBATCH --mail-user=lind1775
+#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT_90,TIME_LIMIT
 #SBATCH --partition=msigpu
 #SBATCH --gres=gpu:h100:4
 #SBATCH --nodes=1

@@ -107,7 +107,7 @@ use those legacy launchers.
 ## Example: train LinearNO full on MSI
 
 Activate your training environment, then submit this batch job from the MSI
-login node. It requests **four A100 GPUs on one node for up to eight hours**,
+login node. It requests **four A100 GPUs on one node for up to 21 hours**,
 with 32 CPUs and 128 GB host RAM. The batch script calls the local training
 launcher; no separate LinearNO or Transolver-3 checkout is required.
 
@@ -134,7 +134,7 @@ directory for a separate training run.
 The script starts four workers with `python -m torch.distributed.run`, using
 `--nproc_per_node=4`, a learning rate of `0.001`, and `OMP_NUM_THREADS=8`.
 Logs are written to `slurm-<job-id>.out` and `slurm-<job-id>.err` in the submission
-directory. The eight-hour limit is the job's maximum runtime; completion of all
+directory. The 21-hour limit is the job's maximum runtime; completion of all
 500 epochs within that time has not been measured.
 
 ## Full-geometry evaluation on MSI

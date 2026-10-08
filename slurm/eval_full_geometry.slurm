@@ -1,5 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=ahmedml_full_geometry
+#SBATCH --mail-user=lind1775
+#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT_90,TIME_LIMIT
 #SBATCH --partition=interactive-gpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1

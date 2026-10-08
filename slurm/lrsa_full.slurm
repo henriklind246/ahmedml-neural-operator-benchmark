@@ -1,5 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=lrsa500
+#SBATCH --mail-user=lind1775
+#SBATCH --mail-type=BEGIN,END,FAIL,TIME_LIMIT_90,TIME_LIMIT
 #SBATCH --partition=msigpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -7,7 +9,6 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=128G
 #SBATCH --time=16:00:00
-#SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
 
