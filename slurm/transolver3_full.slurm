@@ -6,10 +6,10 @@
 #SBATCH --partition=msigpu
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=128G
-#SBATCH --time=12:00:00
-#SBATCH --gres=gpu:h100:4
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=48G
+#SBATCH --time=21:00:00
+#SBATCH --gres=gpu:a100:4
 #SBATCH --output=slurm-%j.out
 #SBATCH --error=slurm-%j.err
 	
