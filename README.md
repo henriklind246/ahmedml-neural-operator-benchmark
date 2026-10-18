@@ -76,7 +76,9 @@ launchers around the Python entry points. `visualization/` provides a separate
 Transolver-3 full-model script for exporting predictions to VTP for ParaView;
 that script currently uses independent-chunk inference. It also provides
 `plot_parity.py`, which plots predicted against true pressure and |WSS| for any
-evaluated model (see [parity plots](docs/full_geometry_inference.md#parity-plots)).
+evaluated model (see [parity plots](docs/full_geometry_inference.md#parity-plots)),
+and `plot_accuracy_cost.py`, which plots each model's error against its peak GPU
+memory or evaluation time (see [accuracy vs. cost](docs/full_geometry_inference.md#accuracy-vs-cost)).
 
 ## External code and data on MSI
 
