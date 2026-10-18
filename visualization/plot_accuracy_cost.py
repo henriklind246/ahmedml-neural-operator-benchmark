@@ -49,6 +49,13 @@ MUTED = "#898781"
 GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 
+# Font sizes (points), large enough to stay readable when the figure is shrunk onto a slide or page.
+TITLE_SIZE = 16
+LABEL_SIZE = 14.5
+TICK_SIZE = 13
+ANNOTATION_SIZE = 13
+LEGEND_SIZE = 13.5
+
 
 def split_model(name):
     """Return (family, size) for a model argument such as 'linearno_efficient'."""
@@ -107,7 +114,7 @@ def plot(summaries, cost_kind, output, dpi):
         points.setdefault(family, {})[size] = s
     families = [f for f in FAMILIES if f in points]
 
-    fig, axes = plt.subplots(1, len(ERRORS), figsize=(10.5, 4.6), layout="constrained", sharex=True)
+    fig, axes = plt.subplots(1, len(ERRORS), figsize=(12, 5.4), layout="constrained", sharex=True)
     fig.patch.set_facecolor(SURFACE)
     x_max = max(cost(s, cost_kind) for s in summaries)
 
@@ -118,46 +125,41 @@ def plot(summaries, cost_kind, output, dpi):
             xy = {size: (cost(s, cost_kind), 100 * s[key]) for size, s in points[family].items()}
             if len(xy) == 2:
                 ax.annotate("", xy=xy["efficient"], xytext=xy["full"], zorder=2,
-                            arrowprops=dict(arrowstyle="-|>", color=color, lw=1.5, mutation_scale=11,
-                                            shrinkA=7, shrinkB=7, alpha=0.7))
+                            arrowprops=dict(arrowstyle="-|>", color=color, lw=2, mutation_scale=15,
+                                            shrinkA=9, shrinkB=9, alpha=0.7))
             for size, (x, y) in xy.items():
                 filled = size == "full"
                 # Full: filled with a surface ring; efficient: hollow ring in the family color.
                 # The ring sits inside the filled marker's edge, so it is drawn larger to look the same size.
-                ax.scatter(x, y, s=104 if filled else 64, zorder=3, linewidths=2 if filled else 2.2,
+                ax.scatter(x, y, s=170 if filled else 100, zorder=3, linewidths=2 if filled else 2.6,
                            facecolors=color if filled else SURFACE,
                            edgecolors=SURFACE if filled else color)
             # Name the family once, beside its full model (or whichever variant is present).
             x, y = xy.get("full", next(iter(xy.values())))
-            ax.annotate(label, (x, y), xytext=(8, 0), textcoords="offset points",
-                        va="center", ha="left", fontsize=8.5, color=INK_SECONDARY, zorder=4)
+            ax.annotate(label, (x, y), xytext=(10, 0), textcoords="offset points",
+                        va="center", ha="left", fontsize=ANNOTATION_SIZE, color=INK_SECONDARY, zorder=4)
 
         ax.margins(x=0.12, y=0.18)
         ax.set_xlim(0, 1.15 * x_max)
-        ax.set_title(panel_title, color=INK, fontsize=11, loc="left")
-        ax.set_xlabel(COSTS[cost_kind], color=INK_SECONDARY)
-        ax.set_ylabel("Relative L2 error (%)", color=INK_SECONDARY)
-        ax.text(0.015, 0.025, "↙ better", transform=ax.transAxes, color=MUTED, fontsize=8)
+        ax.set_title(panel_title, color=INK, fontsize=TITLE_SIZE, loc="left")
+        ax.set_xlabel(COSTS[cost_kind], color=INK_SECONDARY, fontsize=LABEL_SIZE)
+        ax.set_ylabel("Relative L2 error (%)", color=INK_SECONDARY, fontsize=LABEL_SIZE)
+        ax.text(0.015, 0.025, "↙ better", transform=ax.transAxes, color=MUTED, fontsize=ANNOTATION_SIZE)
         ax.grid(color=GRID, lw=0.8)
         ax.set_axisbelow(True)
-        ax.tick_params(colors=MUTED, labelcolor=INK_SECONDARY, labelsize=8)
+        ax.tick_params(colors=MUTED, labelcolor=INK_SECONDARY, labelsize=TICK_SIZE)
         for spine in ("top", "right"):
             ax.spines[spine].set_visible(False)
         for spine in ("bottom", "left"):
             ax.spines[spine].set_color(AXIS)
 
-    handles = [Line2D([], [], ls="", marker="o", ms=8, mfc=FAMILIES[f][1], mec=FAMILIES[f][1], label=FAMILIES[f][0])
+    handles = [Line2D([], [], ls="", marker="o", ms=11, mfc=FAMILIES[f][1], mec=FAMILIES[f][1], label=FAMILIES[f][0])
                for f in families]
-    handles += [Line2D([], [], ls="", marker="o", ms=8, mfc=MUTED, mec=MUTED, label="Full model"),
-                Line2D([], [], ls="", marker="o", ms=8, mfc=SURFACE, mec=MUTED, mew=2, label="Efficient model")]
+    handles += [Line2D([], [], ls="", marker="o", ms=11, mfc=MUTED, mec=MUTED, label="Full model"),
+                Line2D([], [], ls="", marker="o", ms=11, mfc=SURFACE, mec=MUTED, mew=2.6, label="Efficient model")]
     fig.legend(handles=handles, loc="outside lower center", ncols=len(handles),
-               fontsize=9, frameon=False, labelcolor=INK_SECONDARY)
+               fontsize=LEGEND_SIZE, frameon=False, handletextpad=0.3, columnspacing=1.8, labelcolor=INK_SECONDARY)
 
-    first = summaries[0]
-    fig.suptitle(f"Accuracy vs. cost · {first['inference_mode']} · {len(first['runs'])} test geometries",
-                 color=INK, fontsize=12)
-    # The outside legend needs one extra layout pass, or the suptitle overlaps panel titles.
-    fig.draw_without_rendering()
     fig.savefig(output, dpi=dpi, facecolor=SURFACE)
     plt.close(fig)
 
